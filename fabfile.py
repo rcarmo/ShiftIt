@@ -1,48 +1,90 @@
-from fabric.api import local, execute, abort, task, lcd, puts
-from fabric.contrib.console import confirm
-from xml.etree import ElementTree
-
-import os
-import pystache
-import github3
-import tempfile
-import base64
-import datetime
-
 ################################################################################
 ## Configuration
 ################################################################################
+import os
+import tempfile
+
+try:
+    import sh
+
+    gpg = sh.Command('gpg')
+except ImportError as exc:
+    def gpg(*args, **kwargs):
+        raise NotImplementedError('the sh module is not installed; unable to use gpg-encrypted keys')
+
+
+class DecryptedFiles(object):
+    tempfiles = []
+
+    @classmethod
+    def get_decrypted_key_path(cls, path):
+        """
+        Returns the path to a decrypted key
+
+        When the given path ends with `.gpg`, the file will be decrypted into a temporary file.
+
+        Args:
+            path (str): path to the decrypted key
+
+        Returns:
+            str: the path to a decrypted key
+        """
+        if not path.endswith('.gpg'):
+            return path
+
+        fh = tempfile.NamedTemporaryFile()
+        cls.tempfiles.append(fh)
+
+        result = gpg('-d', path)
+
+        fh.write(result.stdout)
+        fh.flush()
+
+        return fh.name
+
+SHIFTIT_GITHUB_USER = os.environ['SHIFTIT_GITHUB_USER']
+SHIFTIT_GITHUB_REPO = os.environ['SHIFTIT_GITHUB_REPO']
 
 proj_name = 'ShiftIt'
 proj_info_plist = 'ShiftIt-Info.plist'
 proj_src_dir = 'ShiftIt'
-proj_private_key = '/Users/krikava/Dropbox/Personal/Keys/ShiftIt/dsa_priv.pem'
 
-release_notes_template = '''
+proj_private_key = DecryptedFiles.get_decrypted_key_path(os.environ.get('SHIFTIT_PRIVATE_KEY', '/Users/krikava/Dropbox/Personal/Keys/ShiftIt/dsa_priv.pem'))
+proj_github_token_file = DecryptedFiles.get_decrypted_key_path(os.environ.get('SHIFTIT_GITHUB_TOKEN', '/Users/krikava/Dropbox/Personal/Keys/ShiftIt/github.token'))
+
+release_notes_template_html = '''
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
-<body>
-<h1>{{proj_name}} version {{proj_version}}</h1>
+    <body>
+        <h1>{{proj_name}} version {{proj_version}}</h1>
 
-{{#devel}}
-  <b>This is a development release that is intended for testing purposes only!</b>
-{{/devel}}
+        {{#has_issues}}
+        <h2>Issues closed</h2>
+        <ul>
+        {{#issues}}
+            <li><a href="{{html_url}}"><b>#{{number}}</b></a> - {{title}}</li>
+        {{/issues}}
+        </ul>
+        {{/has_issues}}
 
+        More information about this release can be found on <a href="{{milestone_url}}">github</a>.
+        <br/><br/>
+        If you find any bugs please report them on <a href="http://github.com/fikovnik/ShiftIt/issues">github</a>.
+    </body>
+</html>
+'''.strip()
+
+release_notes_template_md = '''
 {{#has_issues}}
-<h2>Issues closed</h2>
-<ul>
+## Issues closed
 {{#issues}}
-    <li><a href="{{html_url}}"><b>#{{number}}</b></a> - {{title}}</li>
+- [#{{number}}]({{html_url}}) - {{title}}
 {{/issues}}
-</ul>
 {{/has_issues}}
 
-More information about this release can be found on the <a href="{{milestone_url}}">here</a>.
-<br/><br/>
-If you find any bugs please report them on <a href="http://github.com/fikovnik/ShiftIt/issues">github</a>.
+More information about this release can be found on [github]({{milestone_url}}).
 
-</body>
-</html>
+If you find any bugs please report them on [github](http://github.com/fikovnik/ShiftIt/issues).
 '''.strip()
 
 appcast_template = '''
@@ -64,14 +106,16 @@ appcast_template = '''
 </rss>
 '''.strip()
 
+from fabric.api import local, execute, abort, task, lcd, puts, settings
+from fabric.contrib.console import confirm
+from fabric.colors import green
+from xml.etree import ElementTree
 
-################################################################################
-## Prerequisites
-################################################################################
-
-# if not local('git diff-index --quiet HEAD --').return_code:
-#     abort('There are pending changes in the repository. Run git status')
-
+import pystache
+import github3
+import tempfile
+import base64
+import datetime
 
 ################################################################################
 ## Code
@@ -79,81 +123,53 @@ appcast_template = '''
 
 def _find(f, seq):
   """Return first item in sequence where f(item) == True."""
-  
+
   for item in seq:
-    if f(item): 
+    if f(item):
       return item
 
 def _get_bundle_version(info_plist):
     version = local('defaults read %s CFBundleVersion' % info_plist, capture=True)
     return version.strip()
 
-def _get_git_branch():
-    branch = local('git symbolic-ref HEAD', capture=True)
-    return branch[len('refs/heads/'):].strip()
-
-def _gen_release_notes():
-    def _convert(i):
-        return { \
-                'number': i.number, \
-                'html_url': i.html_url, \
-                'title': i.title, \
-            }
-
-    github = _github()
-    shiftit = github.repository('fikovnik','ShiftIt')
-
+def _get_milestone():
     milestone = _find(lambda m: proj_version.startswith(m.title), shiftit.iter_milestones())
     if not milestone:
         raise Exception('Unable to find milestone: %s' % proj_version)
 
+    return milestone
 
-    open_issues = list(shiftit.iter_issues(milestone=milestone.number, state='open'))
-    if len(open_issues) > 0 and not proj_is_dev:
-        puts('Warning: there are still open issues')
-        for i in open_issues:
-            print '\t * #%s: %s' % (i.number, i.title)
+def _gen_release_notes(template):
+    def _convert(i):
+        return {
+            'number': i.number,
+            'html_url': i.html_url,
+            'title': i.title,
+        }
+
+    milestone = _get_milestone()
 
     closed_issues = list(shiftit.iter_issues(milestone=milestone.number, state='closed'))
     closed_issues.sort(key=lambda i: i.closed_at)
 
-    release_notes = dict( \
-        has_issues = len(closed_issues) > 0, \
-        issues = closed_issues, \
-        proj_name=proj_name, \
-        proj_version=proj_version, \
-        devel=proj_is_dev, \
-        milestone_url='https://github.com/fikovnik/ShiftIt/issues?milestone=%d' % milestone.number, \
+    release_notes = dict(
+        has_issues = len(closed_issues) > 0,
+        issues = closed_issues,
+        proj_name=proj_name,
+        proj_version=proj_version,
+        milestone_url='https://github.com/fikovnik/ShiftIt/issues?milestone=%d' % milestone.number,
         )
 
-    puts('Release notes properties:')
-    for (k,v) in release_notes.items():
-        print "\t%s: %s" % (k,v)
+    return pystache.render(template, release_notes)
 
-    return pystache.render(release_notes_template, release_notes)
-
-def _github():
-    return github3.login(_keychain_get_username('github.com'),
-        _keychain_get_password('github.com'))
-
-
-def _keychain_get_username(account):
-    username = local("security find-internet-password -l %s | grep 'acct' | " \
-                     "cut -d '\"' -f 4" % account, capture=True)
-    return username
-
-def _keychain_get_password(account):
-    password = local("security 2>&1 > /dev/null find-internet-password -g -l" \
-                     " %s | cut -d '\"' -f 2" % account, capture=True)
-    return password
-
+def _load_github_token():
+    with open(proj_github_token_file,'rt') as f:
+        return f.read().strip()
 
 ################################################################################
 ## Project settings
 ################################################################################
 
-proj_branch = _get_git_branch()
-proj_is_dev = not proj_branch.startswith('release')
 proj_src_dir = os.path.join(os.getcwd(), proj_src_dir)
 proj_build_dir = os.path.join(os.getcwd(), 'build')
 proj_app_dir = os.path.join(proj_src_dir,'build','Release',proj_name+'.app')
@@ -161,16 +177,21 @@ proj_public_key = os.path.join(proj_src_dir,'dsa_pub.pem')
 proj_info_plist = os.path.join(proj_src_dir, proj_info_plist)
 
 proj_version = _get_bundle_version(proj_info_plist)
-proj_archive_tag = '-develop' if proj_is_dev else ''
-proj_archive_name = proj_name + proj_archive_tag + '-' + proj_version + '.zip'
+proj_archive_name = proj_name + '-' + proj_version + '.zip'
 proj_archive_path = os.path.join(proj_build_dir, proj_archive_name)
 
-proj_download_url = 'https://github.com/downloads/fikovnik/ShiftIt/'+proj_archive_name
-proj_release_notes_url = 'http://htmlpreview.github.com/?https://raw.github.com/fikovnik/ShiftIt/'+proj_branch+'/release/release-notes-'+proj_version+'.html'
-proj_release_notes_file = os.path.join(os.getcwd(),'release','release-notes-'+proj_version+'.html')
-proj_appcast_url = 'https://raw.github.com/fikovnik/ShiftIt/'+proj_branch+'/release/appcast.xml'
+proj_download_url = 'https://github.com/fikovnik/ShiftIt/releases/download/version-%s/%s' % (proj_version, proj_archive_name)
+proj_release_notes_url = 'http://htmlpreview.github.com/?https://raw.github.com/fikovnik/ShiftIt/master/release/release-notes-'+proj_version+'.html'
+proj_release_notes_html_file = os.path.join(os.getcwd(),'release','release-notes-'+proj_version+'.html')
 proj_appcast_file = os.path.join(os.getcwd(),'release','appcast.xml')
+proj_github_token = _load_github_token()
 
+################################################################################
+## Globals
+################################################################################
+
+github = github3.login(token=proj_github_token)
+shiftit = github.repository(SHIFTIT_GITHUB_USER, SHIFTIT_GITHUB_REPO)
 
 ################################################################################
 ## Tasks
@@ -201,30 +222,33 @@ def archive():
     Archives build
     '''
 
-    # dependencies
     execute(build)
-
     local('ditto -ck --keepParent %s %s' % (proj_app_dir, proj_archive_path))
 
 @task
-def prepare_release():
+def release_notes():
+    with open(proj_release_notes_html_file,"w") as f:
+        f.write(_gen_release_notes(release_notes_template_html))
+        puts('Written '+proj_release_notes_html_file)
+
+@task
+def appcast():
     '''
     Prepare the release: sign the build, generate appcast, generate release notes, commit and push.
     '''
 
-    # prerequisites
-    puts('Verify that the update URL matches')
+    milestone = _get_milestone()
+
+    # verify that appcast URL matches
     tree = ElementTree.parse(proj_info_plist)
     root = tree.getroot().find('dict')
     elem = list(root.findall('*'))
-    plist_appcast_url = _find(lambda (k,v): k.text == 'SUFeedURL', zip(*[iter(elem)]*2))[1].text.strip()
-    if plist_appcast_url != proj_appcast_url:
-        abort('Appcasts are different! Expected: `%s`, got: `%s`' % (proj_appcast_url, plist_appcast_url))
+    appcast_url = _find(lambda (k,v): k.text == 'SUFeedURL', zip(*[iter(elem)]*2))[1].text.strip()
 
     # dependencies
     execute(archive)
+    execute(release_notes)
 
-    puts('Sign the build')
     sign_file = tempfile.mktemp()
     local('openssl dgst -sha1 -binary < %s | openssl dgst -dss1 -sign %s > %s'
         % (proj_archive_path, proj_private_key, sign_file))
@@ -238,85 +262,50 @@ def prepare_release():
     os.remove(sign_file)
 
     # appcast properties
-    appcast = dict( \
-        proj_name=proj_name, \
-        proj_appcast_url=proj_appcast_url, \
-        proj_version=proj_version, \
-        proj_release_notes_url=proj_release_notes_url, \
-        date=datetime.datetime.now().strftime('%a, %d %b %G %T %z'), \
-        download_url=proj_download_url, \
-        download_size=os.path.getsize(proj_archive_path), \
-        download_signature=signature, \
+    appcast = dict(
+        proj_name=proj_name,
+        proj_appcast_url=appcast_url,
+        proj_version=proj_version,
+        proj_release_notes_url=proj_release_notes_url,
+        date=datetime.datetime.now().strftime('%a, %d %b %G %T %z'),
+        download_url=proj_download_url,
+        download_size=os.path.getsize(proj_archive_path),
+        download_signature=signature,
     )
 
-    puts('Appcast properties:')
-    for (k,v) in appcast.items():
-        print "\t%s: %s" % (k,v)
-   
-    appcast_str = pystache.render(appcast_template, appcast)
-    release_notes_str = _gen_release_notes()
-
-    puts('Following will update appcast and release-notes, COMMIT and PUSH TO ORIGIN!')
-    if not confirm('Proceed with release (make sure you know what are you doing!)?'):
-        return
-        
     with open(proj_appcast_file,"w") as f:
-        f.write(appcast_str)
-
-    with open(proj_release_notes_file,"w") as f:
-        f.write(release_notes_str)
-
-    local('git add %s' % proj_appcast_file)    
-    local('git add %s' % proj_release_notes_file)
-    local('git commit -m "Added appcast and release notes for the %s release"' % proj_archive_name)
-    local('git push origin %s' % proj_branch)
-
-@task
-def upload_release():
-    '''
-    Uploads the release to github
-    '''
-
-    # dependencies
-    execute(archive)
-
-    if not confirm('Proceed with upload?'):
-        return
-
-    github = _github()
-    shiftit = github.repository('fikovnik','ShiftIt')
-
-    download = _find(lambda d: d.name == proj_archive_name, shiftit.iter_downloads())
-    if download:
-        if not confirm('Download %s (id: %s, size: %s bytes) already exists. Override?' % (download.name, download.id, download.size)):
-            return
-        else:
-            puts('Deleting download: %s (%s)' % (download.name, download.id))
-            download.delete()
-
-    download = shiftit.create_download(proj_archive_name, proj_archive_path)
-
-    if not download:
-        raise Exception('Unable to upload')
-
-    puts('Uploaded: %s (id: %s, size: %s bytes): %s' % (download.name, download.id, download.size, download.html_url))
-    proj_download_url=download.html_url
+        f.write(pystache.render(appcast_template, appcast))
 
 @task
 def release():
     '''
-    Makes the complete release (same as prepare_release, upload_release)
+    Prepares the release to github
     '''
 
-    # dependencies
-    execute(prepare_release)
-    execute(upload_release)
+    with settings(warn_only=True):
+        if not local('git diff-index --quiet HEAD --').return_code:
+            puts('Warning: there are pending changes in the repository. Run git status')
+
+    milestone = _get_milestone()
+    open_issues = list(shiftit.iter_issues(milestone=milestone.number, state='open'))
+    if len(open_issues) > 0:
+        puts('Warning: there are still open issues')
+        for i in open_issues:
+            print '\t * #%s: %s' % (i.number, i.title)
 
 
-@task
-def print_release_notes():
-    '''
-    Prints release notes
-    '''
+    execute(appcast)
 
-    puts(_gen_release_notes())
+    puts('\n')
+    puts('='*100)
+    puts(green('1. Commit appcast and release notes'))
+    puts('message: "Added appcast and release notes for the ShiftIt %s release"' % proj_version)
+    puts(green('2. Finnish the git flow'))
+    puts(green('3. Close milestone at: https://github.com/fikovnik/ShiftIt/milestones'))
+    puts(green('4. Release at: https://github.com/fikovnik/ShiftIt/releases and drafts a new release with:'))
+    puts('-'*100)
+    puts('tag: version-'+proj_version)
+    puts('title: '+proj_version)
+    puts('description:')
+    puts(_gen_release_notes(release_notes_template_md))
+    puts('-'*100)
