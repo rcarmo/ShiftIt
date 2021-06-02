@@ -35,15 +35,7 @@
 	<key>SUEnableSystemProfiling</key>
 	<true/>
 	<key>SUFeedURL</key>
-<<<<<<< HEAD
-<<<<<<< HEAD
 	<string>https://github.com/rcarmo/ShiftIt/raw/master/sparkle/appcast.xml</string>
-=======
-	<string>https://raw.github.com/fikovnik/ShiftIt/develop/release/appcast.xml</string>
->>>>>>> 55ec0788370a8046f8eb9a9ee602d8af6a848d35
-=======
-	<string>https://raw.github.com/fikovnik/ShiftIt/master/release/appcast.xml</string>
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 	<key>SUPublicDSAKeyFile</key>
 	<string>dsa_pub.pem</string>
 </dict>

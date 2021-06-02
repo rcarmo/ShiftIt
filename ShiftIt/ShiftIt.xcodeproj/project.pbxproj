@@ -164,11 +164,6 @@
 
 /* Begin PBXFileReference section */
 		1058C7A1FEA54F0111CA2CBB /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = /System/Library/Frameworks/Cocoa.framework; sourceTree = "<absolute>"; };
-<<<<<<< HEAD
-		1DDD58150DA1D0A300B32029 /* English */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = English; path = English.lproj/MainMenu.xib; sourceTree = "<group>"; };
-		250BD14017CB756500C4EC28 /* libLeap.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libLeap.dylib; path = LeapSDK/libLeap.dylib; sourceTree = "<group>"; };
-=======
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 		256AC3D80F4B6AC300CF3369 /* ShiftItAppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ShiftItAppDelegate.h; sourceTree = "<group>"; };
 		256AC3D90F4B6AC300CF3369 /* ShiftItAppDelegate.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ShiftItAppDelegate.m; sourceTree = "<group>"; };
 		256AC3F00F4B6AF500CF3369 /* ShiftIt_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ShiftIt_Prefix.pch; sourceTree = "<group>"; };
@@ -387,11 +382,7 @@
 		2708C1CC1261388A00192883 /* External */ = {
 			isa = PBXGroup;
 			children = (
-<<<<<<< HEAD
-				259CBC1617C805500089B497 /* LeapMotion */,
-=======
 				279AF81B194367D10048FE5F /* SBSystemPreferences.h */,
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 				270DACA514098ACA0080DFBD /* GTM */,
 				2708C1CE126138A000192883 /* FMT */,
 			);
@@ -676,11 +667,7 @@
 				8D11072C0486CEB800E47090 /* Sources */,
 				8D11072E0486CEB800E47090 /* Frameworks */,
 				F270823F117FCFD600C0A04C /* CopyFiles */,
-<<<<<<< HEAD
-				250BB2B417CB788200ADDB88 /* CopyFiles */,
-=======
 				271CB7E7192C093800D633E6 /* CopyFiles */,
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 			);
 			buildRules = (
 			);
@@ -831,11 +818,7 @@
 				27160C6616C939FF002DA475 /* FMTNSError+Extras.m in Sources */,
 				27160C6716C939FF002DA475 /* FMTGeometry.m in Sources */,
 				27160C6816C939FF002DA475 /* FMTNSFileManager+DirectoryLocations.m in Sources */,
-<<<<<<< HEAD
-				259CBC1F17C805D90089B497 /* SILeapController.mm in Sources */,
-=======
 				E4BCF238FB8ED2BD310B85A5 /* FMTError.m in Sources */,
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -890,11 +873,7 @@
 				2717BE3B149935EC0012EF87 /* FMTNSError+Extras.m in Sources */,
 				F2DC61EF1127C862000E1A68 /* FMTGeometry.m in Sources */,
 				F2DC61EF1127C862000E1A6D /* FMTNSFileManager+DirectoryLocations.m in Sources */,
-<<<<<<< HEAD
-				259CBC1E17C805D90089B497 /* SILeapController.mm in Sources */,
-=======
 				E4BCF1FFDFE5D8200B19C785 /* FMTError.m in Sources */,
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1068,11 +1047,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-<<<<<<< HEAD
-				COPY_PHASE_STRIP = NO;
-=======
 				COMBINE_HIDPI_IMAGES = YES;
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 				FRAMEWORK_SEARCH_PATHS = .;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
@@ -1085,14 +1060,9 @@
 				);
 				INFOPLIST_FILE = "ShiftIt-Info.plist";
 				LIBRARY_SEARCH_PATHS = (
-<<<<<<< HEAD
-					/usr/X11/lib,
-					"\"$(SRCROOT)/LeapSDK\"",
-=======
 					/opt/local/lib,
 					/opt/X11/lib,
 					/usr/X11/lib,
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 				);
 				OTHER_CFLAGS = (
 					"-DDEBUG",
@@ -1106,11 +1076,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-<<<<<<< HEAD
-				COPY_PHASE_STRIP = NO;
-=======
 				COMBINE_HIDPI_IMAGES = YES;
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 				FRAMEWORK_SEARCH_PATHS = .;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = ShiftIt_Prefix.pch;
@@ -1121,14 +1087,9 @@
 				);
 				INFOPLIST_FILE = "ShiftIt-Info.plist";
 				LIBRARY_SEARCH_PATHS = (
-<<<<<<< HEAD
-					/usr/X11/lib,
-					"\"$(SRCROOT)/LeapSDK\"",
-=======
 					/opt/local/lib,
 					/opt/X11/lib,
 					/usr/X11/lib,
->>>>>>> 4f488b960b3a276130d8a118e98ccca592e28947
 				);
 				OTHER_CFLAGS = (
 					"-DNDEBUG",
